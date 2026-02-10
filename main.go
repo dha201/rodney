@@ -769,6 +769,11 @@ func cmdSleep(args []string) {
 	if err != nil {
 		fatal("invalid seconds: %v", err)
 	}
+	// If video recording is active, connect to the page so screencast
+	// captures frames during the sleep
+	if s, err := loadState(); err == nil && s.VideoRecording {
+		withPage()
+	}
 	time.Sleep(time.Duration(secs * float64(time.Second)))
 }
 

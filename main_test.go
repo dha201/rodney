@@ -894,6 +894,10 @@ func TestAssembleGIF_DecodableWithStdlib(t *testing.T) {
 	if len(g.Image) != len(g.Delay) {
 		t.Errorf("frame count (%d) != delay count (%d)", len(g.Image), len(g.Delay))
 	}
+	// LoopCount 0 means loop forever
+	if g.LoopCount != 0 {
+		t.Errorf("expected LoopCount 0 (loop forever), got %d", g.LoopCount)
+	}
 
 	// Check dimensions match our viewport
 	bounds := g.Image[0].Bounds()
@@ -907,6 +911,36 @@ func TestAssembleGIF_DecodableWithStdlib(t *testing.T) {
 			t.Errorf("frame %d has non-positive delay: %d", i, d)
 		}
 	}
+}
+
+func TestSleep_CapturesVideoFramesWhenRecording(t *testing.T) {
+	dir := withTestStateDir(t)
+	framesDir := filepath.Join(dir, "video-frames")
+	os.MkdirAll(framesDir, 0755)
+
+	// Navigate to an animated page (simulates a page being open)
+	page := navigateTo(t, "/animated")
+
+	// Set up state: recording is active
+	s := &State{
+		DebugURL:       "ws://fake",
+		ChromePID:      99999,
+		VideoRecording: true,
+		VideoDir:       framesDir,
+	}
+	saveState(s)
+
+	// maybeStartVideoCapture should start screencast when recording is on
+	cleanup := maybeStartVideoCapture(page)
+	time.Sleep(2 * time.Second)
+	cleanup()
+
+	// Frames should have been captured during the sleep
+	frameCount := countFrames(framesDir)
+	if frameCount == 0 {
+		t.Fatal("expected frames to be captured during sleep while recording, got 0")
+	}
+	t.Logf("captured %d frames during 2s sleep", frameCount)
 }
 
 func TestStopVideo_MP4FallsBackToGIFWithoutFfmpeg(t *testing.T) {
