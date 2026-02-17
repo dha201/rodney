@@ -123,6 +123,8 @@ rodney closepage                # Close active tab
 rodney exists ".loading"    # Exit 0 if exists, exit 1 if not
 rodney count "li.item"      # Print number of matching elements
 rodney visible "#modal"     # Exit 0 if visible, exit 1 if not
+rodney assert 'document.title' 'Home'  # Exit 0 if equal, exit 1 if not
+rodney assert 'document.querySelector("h1") !== null'  # Exit 0 if truthy
 ```
 
 ### Accessibility testing
@@ -221,7 +223,7 @@ Rodney uses distinct exit codes to separate check failures from errors:
 | Exit code | Meaning |
 |---|---|
 | `0` | Success |
-| `1` | Check failed — the command ran successfully but the condition was not met |
+| `1` | Check failed — the command ran successfully but the condition/assertion was not met |
 | `2` | Error — something went wrong (bad arguments, no browser session, timeout, etc.) |
 
 This makes it easy to distinguish between "the assertion is false" and "the command couldn't run" in scripts and CI pipelines.
@@ -260,6 +262,31 @@ rodney ax-find --role banner --name "Nonexistent"
 # Prints "No matching nodes" to stderr, exits 1
 ```
 
+### `assert` — assert a JavaScript expression
+
+With one argument, checks that the expression is truthy. With two arguments, checks that the expression's value equals the expected string.
+
+```bash
+# Truthy mode — check that expression evaluates to a truthy value
+rodney assert 'document.querySelector(".logged-in") !== null'
+# Prints "pass", exits 0
+
+rodney assert 'document.querySelector(".nonexistent")'
+# Prints "fail: got null", exits 1
+
+# Equality mode — check that expression result matches expected value
+rodney assert 'document.title' 'Dashboard'
+# Prints "pass" if title is "Dashboard", exits 0
+
+rodney assert 'document.querySelectorAll(".item").length' '3'
+# Prints "pass" if there are exactly 3 items, exits 0
+
+rodney assert 'document.title' 'Wrong Title'
+# Prints 'fail: got "Dashboard", expected "Wrong Title"', exits 1
+```
+
+The expression is evaluated the same way as `rodney js` — the result is converted to its string representation before comparison. This means `rodney assert 'document.title' 'Dashboard'` compares the unquoted string, and `rodney assert '1 + 2' '3'` compares the number as a string.
+
 ### Combining checks in a shell script
 
 You can chain these together in a single script to run multiple assertions. Because check failures use exit code 1 while real errors use exit code 2, you can use `set -e` to abort on errors while handling check failures explicitly:
@@ -289,6 +316,11 @@ check rodney exists "footer"
 # Assert key elements are visible
 check rodney visible "h1"
 check rodney visible "#main-content"
+
+# Assert JS expressions
+check rodney assert 'document.title' 'Example Domain'
+check rodney assert 'document.querySelectorAll("p").length' '2'
+check rodney assert 'document.querySelector("h1") !== null'
 
 # Assert accessibility requirements
 check rodney ax-find --role navigation
@@ -383,6 +415,7 @@ The tool uses the [rod](https://github.com/go-rod/rod) Go library which communic
 | `exists` | `<selector>` | Check element exists (exit 1 if not) |
 | `count` | `<selector>` | Count matching elements |
 | `visible` | `<selector>` | Check element visible (exit 1 if not) |
+| `assert` | `<expr> [expected]` | Assert JS expression is truthy or equals expected (exit 1 if not) |
 | `ax-tree` | `[--depth N] [--json]` | Dump accessibility tree |
 | `ax-find` | `[--name N] [--role R] [--json]` | Find accessible nodes |
 | `ax-node` | `<selector> [--json]` | Show element accessibility info |

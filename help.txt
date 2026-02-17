@@ -54,6 +54,7 @@ Element checks:
   rodney exists <selector>        Check if element exists (exit 1 if not)
   rodney count <selector>         Count matching elements
   rodney visible <selector>       Check if element is visible (exit 1 if not)
+  rodney assert <expr> [expected] Assert JS expression is truthy or equals expected
 
 Accessibility:
   rodney ax-tree [--depth N] [--json]       Dump accessibility tree
@@ -75,5 +76,5 @@ Environment:
 
 Exit codes:
   0  Success
-  1  Check failed (exists, visible, ax-find returned no match)
+  1  Check failed (exists, visible, assert, ax-find returned no match)
   2  Error (bad arguments, no browser, timeout, etc.)

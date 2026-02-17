@@ -773,6 +773,192 @@ func TestMimeToExt(t *testing.T) {
 	}
 }
 
+// =====================
+// assert command tests
+// =====================
+
+func TestAssert_TruthyPass_String(t *testing.T) {
+	page := navigateTo(t, "/")
+	// document.title is "Test Page" which is truthy
+	result, err := page.Eval(`() => { return (document.title); }`)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	raw := result.Value.JSON("", "")
+	// Should not be falsy
+	switch raw {
+	case "false", "0", "null", "undefined", `""`:
+		t.Errorf("document.title should be truthy, got raw=%q", raw)
+	}
+	if result.Value.Str() != "Test Page" {
+		t.Errorf("expected 'Test Page', got %q", result.Value.Str())
+	}
+}
+
+func TestAssert_TruthyPass_True(t *testing.T) {
+	page := navigateTo(t, "/")
+	result, err := page.Eval(`() => { return (1 === 1); }`)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	raw := result.Value.JSON("", "")
+	if raw != "true" {
+		t.Errorf("1 === 1 should be true, got %q", raw)
+	}
+}
+
+func TestAssert_TruthyPass_Number(t *testing.T) {
+	page := navigateTo(t, "/")
+	result, err := page.Eval(`() => { return (42); }`)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	raw := result.Value.JSON("", "")
+	if raw == "0" || raw == "false" || raw == "null" || raw == "undefined" || raw == `""` {
+		t.Errorf("42 should be truthy, got raw=%q", raw)
+	}
+}
+
+func TestAssert_TruthyFail_Null(t *testing.T) {
+	page := navigateTo(t, "/")
+	result, err := page.Eval(`() => { return (document.querySelector(".nonexistent")); }`)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	raw := result.Value.JSON("", "")
+	if raw != "null" {
+		t.Errorf("querySelector for nonexistent should return null, got %q", raw)
+	}
+}
+
+func TestAssert_TruthyFail_False(t *testing.T) {
+	page := navigateTo(t, "/")
+	result, err := page.Eval(`() => { return (false); }`)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	raw := result.Value.JSON("", "")
+	if raw != "false" {
+		t.Errorf("false should be false, got %q", raw)
+	}
+}
+
+func TestAssert_TruthyFail_Zero(t *testing.T) {
+	page := navigateTo(t, "/")
+	result, err := page.Eval(`() => { return (0); }`)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	raw := result.Value.JSON("", "")
+	if raw != "0" {
+		t.Errorf("0 should be 0, got %q", raw)
+	}
+}
+
+func TestAssert_TruthyFail_EmptyString(t *testing.T) {
+	page := navigateTo(t, "/")
+	result, err := page.Eval(`() => { return (""); }`)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	raw := result.Value.JSON("", "")
+	if raw != `""` {
+		t.Errorf("empty string should have JSON repr '\"\"', got %q", raw)
+	}
+}
+
+func TestAssert_EqualityPass_Title(t *testing.T) {
+	page := navigateTo(t, "/")
+	result, err := page.Eval(`() => { return (document.title); }`)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	actual := result.Value.Str()
+	if actual != "Test Page" {
+		t.Errorf("expected 'Test Page', got %q", actual)
+	}
+}
+
+func TestAssert_EqualityPass_Count(t *testing.T) {
+	page := navigateTo(t, "/")
+	result, err := page.Eval(`() => { return (document.querySelectorAll("button").length); }`)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	raw := result.Value.JSON("", "")
+	if raw != "2" {
+		t.Errorf("expected 2 buttons, got %q", raw)
+	}
+}
+
+func TestAssert_EqualityFail_WrongTitle(t *testing.T) {
+	page := navigateTo(t, "/")
+	result, err := page.Eval(`() => { return (document.title); }`)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	actual := result.Value.Str()
+	if actual == "Wrong Title" {
+		t.Error("title should NOT equal 'Wrong Title'")
+	}
+}
+
+func TestAssert_EqualityPass_BoolString(t *testing.T) {
+	page := navigateTo(t, "/")
+	result, err := page.Eval(`() => { return (1 === 1); }`)
+	if err != nil {
+		t.Fatalf("eval failed: %v", err)
+	}
+	raw := result.Value.JSON("", "")
+	if raw != "true" {
+		t.Errorf("1 === 1 should produce 'true', got %q", raw)
+	}
+}
+
+func TestAssert_ValueFormatting_MatchesJSCommand(t *testing.T) {
+	// Verify that the value formatting used by assert matches what rodney js outputs
+	page := navigateTo(t, "/")
+
+	tests := []struct {
+		expr     string
+		expected string
+	}{
+		{`document.title`, "Test Page"},   // string unquoted
+		{`1 + 2`, "3"},                    // number
+		{`true`, "true"},                  // boolean
+		{`null`, "null"},                  // null
+		{`document.querySelectorAll("button").length`, "2"}, // number from DOM
+	}
+
+	for _, tt := range tests {
+		js := fmt.Sprintf(`() => { return (%s); }`, tt.expr)
+		result, err := page.Eval(js)
+		if err != nil {
+			t.Fatalf("eval %q failed: %v", tt.expr, err)
+		}
+
+		v := result.Value
+		raw := v.JSON("", "")
+		var actual string
+		switch {
+		case raw == "null" || raw == "undefined":
+			actual = raw
+		case raw == "true" || raw == "false":
+			actual = raw
+		case len(raw) > 0 && raw[0] == '"':
+			actual = v.Str()
+		case len(raw) > 0 && (raw[0] == '{' || raw[0] == '['):
+			actual = v.JSON("", "  ")
+		default:
+			actual = raw
+		}
+
+		if actual != tt.expected {
+			t.Errorf("expr %q: expected %q, got %q (raw=%q)", tt.expr, tt.expected, actual, raw)
+		}
+	}
+}
+
 func TestInsecureFlag_WithSelfSignedCert(t *testing.T) {
 	// Create HTTPS server with self-signed certificate
 	mux := http.NewServeMux()

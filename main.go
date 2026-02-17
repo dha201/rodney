@@ -267,6 +267,8 @@ func main() {
 		cmdCount(args)
 	case "visible":
 		cmdVisible(args)
+	case "assert":
+		cmdAssert(args)
 	case "ax-tree":
 		cmdAXTree(args)
 	case "ax-find":
@@ -1384,6 +1386,60 @@ func cmdVisible(args []string) {
 	} else {
 		fmt.Println("false")
 		os.Exit(1)
+	}
+}
+
+func cmdAssert(args []string) {
+	if len(args) < 1 {
+		fatal("usage: rodney assert <js-expression> [expected]")
+	}
+
+	expr := args[0]
+	_, _, page := withPage()
+
+	js := fmt.Sprintf(`() => { return (%s); }`, expr)
+	result, err := page.Eval(js)
+	if err != nil {
+		fatal("JS error: %v", err)
+	}
+
+	// Format the result value as a string, matching the js command's output
+	v := result.Value
+	raw := v.JSON("", "")
+	var actual string
+	switch {
+	case raw == "null" || raw == "undefined":
+		actual = raw
+	case raw == "true" || raw == "false":
+		actual = raw
+	case len(raw) > 0 && raw[0] == '"':
+		actual = v.Str()
+	case len(raw) > 0 && (raw[0] == '{' || raw[0] == '['):
+		actual = v.JSON("", "  ")
+	default:
+		actual = raw
+	}
+
+	if len(args) >= 2 {
+		// Equality mode: compare string representation to expected
+		expected := args[1]
+		if actual == expected {
+			fmt.Println("pass")
+			os.Exit(0)
+		} else {
+			fmt.Printf("fail: got %q, expected %q\n", actual, expected)
+			os.Exit(1)
+		}
+	} else {
+		// Truthy mode: check if the JS value is truthy
+		switch raw {
+		case "false", "0", "null", "undefined", `""`:
+			fmt.Printf("fail: got %s\n", actual)
+			os.Exit(1)
+		default:
+			fmt.Println("pass")
+			os.Exit(0)
+		}
 	}
 }
 
