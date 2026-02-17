@@ -10,15 +10,18 @@ A Go CLI tool that drives a persistent headless Chrome instance using the [rod](
 ## Architecture
 
 ```
-rodney start     →  launches Chrome (headless, persists after CLI exits)
-                     saves WebSocket debug URL to ~/.rodney/state.json
+rodney start          →  launches Chrome (headless, persists after CLI exits)
+                          saves WebSocket debug URL to ~/.rodney/state.json
 
-rodney open URL  →  connects to running Chrome via WebSocket
-                     navigates the active tab, disconnects
+rodney connect H:P    →  connects to an existing Chrome on a remote debug port
+                          saves WebSocket debug URL to ~/.rodney/state.json
 
-rodney js EXPR   →  connects, evaluates JS, prints result, disconnects
+rodney open URL       →  connects to running Chrome via WebSocket
+                          navigates the active tab, disconnects
 
-rodney stop      →  connects and shuts down Chrome, cleans up state
+rodney js EXPR        →  connects, evaluates JS, prints result, disconnects
+
+rodney stop           →  connects and shuts down Chrome, cleans up state
 ```
 
 Each CLI invocation is a short-lived process. Chrome runs independently and tabs persist between commands.
@@ -38,9 +41,12 @@ Requires:
 ### Start/stop the browser
 
 ```bash
-rodney start          # Launch headless Chrome
-rodney status         # Show browser info and active page
-rodney stop           # Shut down Chrome
+rodney start              # Launch headless Chrome
+rodney start --show       # Launch with visible browser window
+rodney start --insecure   # Launch with TLS errors ignored (-k shorthand)
+rodney connect host:9222  # Connect to existing Chrome on remote debug port
+rodney status             # Show browser info and active page
+rodney stop               # Shut down Chrome
 ```
 
 ### Navigate
@@ -51,6 +57,8 @@ rodney open example.com            # http:// prefix added automatically
 rodney back                        # Go back
 rodney forward                     # Go forward
 rodney reload                      # Reload page
+rodney reload --hard               # Reload bypassing cache
+rodney clear-cache                 # Clear the browser cache
 ```
 
 ### Extract information
@@ -83,6 +91,10 @@ The expression is automatically wrapped in `() => { return (expr); }`.
 rodney click "button#submit"       # Click element
 rodney input "#search" "query"     # Type into input field
 rodney clear "#search"             # Clear input field
+rodney file "#upload" photo.png    # Set file on a file input
+rodney file "#upload" -            # Set file from stdin
+rodney download "a.pdf-link"       # Download href/src target to file
+rodney download "a.pdf-link" -     # Download to stdout
 rodney select "#dropdown" "value"  # Select dropdown by value
 rodney submit "form#login"         # Submit a form
 rodney hover ".menu-item"          # Hover over element
@@ -102,9 +114,10 @@ rodney sleep 2.5            # Sleep for N seconds
 ### Screenshots
 
 ```bash
-rodney screenshot                      # Save as screenshot.png
-rodney screenshot page.png             # Save to specific file
-rodney screenshot-el ".chart" chart.png  # Screenshot specific element
+rodney screenshot                         # Save as screenshot.png
+rodney screenshot page.png                # Save to specific file
+rodney screenshot -w 1280 -h 720 out.png  # Set viewport width/height
+rodney screenshot-el ".chart" chart.png   # Screenshot specific element
 ```
 
 ### Manage tabs
@@ -390,13 +403,15 @@ The tool uses the [rod](https://github.com/go-rod/rod) Go library which communic
 
 | Command | Arguments | Description |
 |---|---|---|
-| `start` | | Launch headless Chrome |
+| `start` | `[--show] [--insecure\|-k]` | Launch Chrome (headless by default, `--show` for visible) |
+| `connect` | `<host:port>` | Connect to existing Chrome on remote debug port |
 | `stop` | | Shut down Chrome |
 | `status` | | Show browser status |
 | `open` | `<url>` | Navigate to URL |
 | `back` | | Go back in history |
 | `forward` | | Go forward in history |
-| `reload` | | Reload current page |
+| `reload` | `[--hard]` | Reload page (`--hard` bypasses cache) |
+| `clear-cache` | | Clear the browser cache |
 | `url` | | Print current URL |
 | `title` | | Print page title |
 | `html` | `[selector]` | Print HTML (page or element) |
@@ -407,6 +422,8 @@ The tool uses the [rod](https://github.com/go-rod/rod) Go library which communic
 | `click` | `<selector>` | Click element |
 | `input` | `<selector> <text>` | Type into input |
 | `clear` | `<selector>` | Clear input |
+| `file` | `<selector> <path\|->` | Set file on a file input (`-` for stdin) |
+| `download` | `<selector> [file\|-]` | Download href/src target (`-` for stdout) |
 | `select` | `<selector> <value>` | Select dropdown value |
 | `submit` | `<selector>` | Submit form |
 | `hover` | `<selector>` | Hover over element |
@@ -416,7 +433,7 @@ The tool uses the [rod](https://github.com/go-rod/rod) Go library which communic
 | `waitstable` | | Wait for DOM stability |
 | `waitidle` | | Wait for network idle |
 | `sleep` | `<seconds>` | Sleep N seconds |
-| `screenshot` | `[file]` | Page screenshot |
+| `screenshot` | `[-w N] [-h N] [file]` | Page screenshot (optional viewport size) |
 | `screenshot-el` | `<selector> [file]` | Element screenshot |
 | `pages` | | List tabs |
 | `page` | `<index>` | Switch tab |
@@ -437,4 +454,4 @@ The tool uses the [rod](https://github.com/go-rod/rod) Go library which communic
 | `--local` | Use directory-scoped session (`./.rodney/`) |
 | `--global` | Use global session (`~/.rodney/`) |
 | `--version` | Print version and exit |
-| `--help`, `-h` | Show help message |
+| `--help`, `-h`, `help` | Show help message |
